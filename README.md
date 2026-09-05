@@ -18,7 +18,7 @@ A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds an inst
 
 ### Release ZIP
 
-The easiest option is to open the [latest release](https://github.com/scoufman/synastria_ah_buyer/releases/latest) and download the attached `synastria_ah_buyer-v1.0.zip` file.
+The easiest option is to open the [latest release](https://github.com/scoufman/synastria_ah_buyer/releases/latest) and download the attached `synastria_ah_buyer-v1.1.zip` file.
 
 Extract the ZIP and copy its `synastria_ah_buyer` folder into your WoW AddOns directory.
 
@@ -62,4 +62,4 @@ There is no confirmation popup. Clicking **BUY** attempts to purchase that aucti
 
 - World of Warcraft 3.3.5a
 - Addon interface version `30300`
-- Addon version `1.0`
+- Addon version `1.1`
