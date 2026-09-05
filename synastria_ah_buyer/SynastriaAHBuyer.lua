@@ -119,15 +119,16 @@ local function CreateRowBuyoutButtons()
     UpdateRowBuyoutButtons()
 end
 
-eventFrame:SetScript("OnEvent", function(self, event, loadedAddon)
-    if event == "ADDON_LOADED" and loadedAddon == "Blizzard_AuctionUI" then
-        CreateRowBuyoutButtons()
-        self:UnregisterEvent("ADDON_LOADED")
-    end
-end)
-eventFrame:RegisterEvent("ADDON_LOADED")
-
 if IsAddOnLoaded("Blizzard_AuctionUI") then
     CreateRowBuyoutButtons()
-    eventFrame:UnregisterEvent("ADDON_LOADED")
+else
+    eventFrame:SetScript("OnEvent", function(self, _, loadedAddon)
+        if loadedAddon ~= "Blizzard_AuctionUI" then
+            return
+        end
+
+        self:UnregisterEvent("ADDON_LOADED")
+        CreateRowBuyoutButtons()
+    end)
+    eventFrame:RegisterEvent("ADDON_LOADED")
 end
