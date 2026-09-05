@@ -12,7 +12,19 @@ A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds an inst
 
 ## Installation
 
-Copy or link this repository into your WoW AddOns directory so the folder and `.toc` file have matching names:
+Download and extract the repository, then copy the inner `synastria_ah_buyer` folder into your WoW AddOns directory.
+
+The downloaded repository is arranged like this:
+
+```text
+synastria_ah_buyer-main\
+├── README.md
+└── synastria_ah_buyer\
+    ├── synastria_ah_buyer.toc
+    └── SynastriaAHBuyer.lua
+```
+
+After copying the inner folder, your WoW installation should contain:
 
 ```text
 World of Warcraft\Interface\AddOns\synastria_ah_buyer\
