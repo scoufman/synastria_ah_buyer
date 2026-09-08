@@ -2,6 +2,10 @@
 
 A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds instant **BUY** and **BID** buttons to each visible Auction House browse row.
 
+## Preview
+
+![Auction House item rows with instant BUY and BID buttons](assets/auction-house-buy-buttons.webp)
+
 ## Features
 
 - Compact **BUY** and **BID** buttons on every visible auction row
