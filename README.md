@@ -9,7 +9,7 @@ A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds instant
 ## Features
 
 - Compact **BUY** and **BID** buttons on every visible auction row
-- Consistent font sizing for item details and prices in Auction House browse results
+- Consistent font sizing and vertically aligned gold, silver, and copper columns in Auction House browse results
 - Narrower level column gives auction item names more room (might use the extra space in the future differently)
 - **BUY** purchases the auction without the normal confirmation popup
 - **BID** places the minimum bid currently accepted by the auction
@@ -21,7 +21,7 @@ A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds instant
 
 ### Release ZIP
 
-The easiest option is to open the [latest release](https://github.com/scoufman/synastria_ah_buyer/releases/latest) and download the attached `synastria_ah_buyer-v1.3.zip` file.
+The easiest option is to open the [latest release](https://github.com/scoufman/synastria_ah_buyer/releases/latest) and download the attached `synastria_ah_buyer-v1.4.zip` file.
 
 Extract the ZIP and copy its `synastria_ah_buyer` folder into your WoW AddOns directory.
 
@@ -65,4 +65,4 @@ There is no confirmation popup. Clicking **BUY** attempts to purchase the auctio
 
 - World of Warcraft 3.3.5a
 - Addon interface version `30300`
-- Addon version `1.3`
+- Addon version `1.4`

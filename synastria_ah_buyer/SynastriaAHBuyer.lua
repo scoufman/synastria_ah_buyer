@@ -8,9 +8,9 @@ local BROWSE_RESULT_FONT_SIZE = 10
 local PRICE_FONT_SIZE = 13
 local MONEY_ICON_WIDTH = 13
 local MONEY_DENOMINATIONS = {
-    "Gold",
-    "Silver",
-    "Copper",
+    { name = "Gold" },
+    { name = "Silver", minimumText = "00" },
+    { name = "Copper", minimumText = "00" },
 }
 
 local LEVEL_COLUMN_REDUCTION = 22
@@ -41,16 +41,42 @@ local function SetFontSize(fontString, fontSize)
     end
 end
 
-local function SetMoneyFrameFontSize(frameName)
+local function ConfigureMoneyFrame(frameName)
     for _, denomination in ipairs(MONEY_DENOMINATIONS) do
-        local buttonName = frameName .. denomination .. "Button"
+        local buttonName = frameName .. denomination.name .. "Button"
         local button = _G[buttonName]
         if button then
             local fontString = button:GetFontString() or _G[buttonName .. "Text"]
             SetFontSize(fontString, PRICE_FONT_SIZE)
 
             if fontString then
-                button:SetWidth(fontString:GetStringWidth() + MONEY_ICON_WIDTH)
+                if fontString.SetJustifyH then
+                    fontString:SetJustifyH("RIGHT")
+                end
+
+                if denomination.minimumText then
+                    local text = fontString:GetText()
+                    fontString:SetText(denomination.minimumText)
+                    button.synastriaMinimumTextWidth = fontString:GetStringWidth()
+                    fontString:SetText(text or "")
+                end
+            end
+        end
+    end
+end
+
+local function UpdateMoneyFrameWidths(frameName)
+    for _, denomination in ipairs(MONEY_DENOMINATIONS) do
+        local buttonName = frameName .. denomination.name .. "Button"
+        local button = _G[buttonName]
+        if button then
+            local fontString = button:GetFontString() or _G[buttonName .. "Text"]
+            if fontString then
+                local textWidth = math.max(
+                    fontString:GetStringWidth(),
+                    button.synastriaMinimumTextWidth or 0
+                )
+                button:SetWidth(textWidth + MONEY_ICON_WIDTH)
             end
         end
     end
@@ -77,8 +103,8 @@ local function HideFrameText(frame)
         return
     end
 
-    local regions = { frame:GetRegions() }
-    for _, region in ipairs(regions) do
+    for i = 1, frame:GetNumRegions() do
+        local region = select(i, frame:GetRegions())
         if region.GetFont and region.Hide then
             region:Hide()
         end
@@ -113,9 +139,18 @@ local function SetBrowseResultFontSize()
             SetFontSize(_G[rowName .. fieldName], BROWSE_RESULT_FONT_SIZE)
         end
 
-        SetMoneyFrameFontSize(rowName .. "MoneyFrame")
-        SetMoneyFrameFontSize(rowName .. "BuyoutMoneyFrame")
-        SetMoneyFrameFontSize(rowName .. "BuyoutFrameMoney")
+        ConfigureMoneyFrame(rowName .. "MoneyFrame")
+        ConfigureMoneyFrame(rowName .. "BuyoutMoneyFrame")
+        ConfigureMoneyFrame(rowName .. "BuyoutFrameMoney")
+    end
+end
+
+local function UpdateBrowseMoneyFrameWidths()
+    for i = 1, NUM_BROWSE_TO_DISPLAY do
+        local rowName = "BrowseButton" .. i
+        UpdateMoneyFrameWidths(rowName .. "MoneyFrame")
+        UpdateMoneyFrameWidths(rowName .. "BuyoutMoneyFrame")
+        UpdateMoneyFrameWidths(rowName .. "BuyoutFrameMoney")
     end
 end
 
@@ -272,7 +307,7 @@ local function UpdateRowButtons()
         end
     end
 
-    SetBrowseResultFontSize()
+    UpdateBrowseMoneyFrameWidths()
 end
 
 local function CreateRowButtons()
@@ -318,6 +353,8 @@ local function CreateRowButtons()
         buyoutButton:SetScript("OnLeave", HideRowButtonTooltip)
         rowBuyoutButtons[i] = buyoutButton
     end
+
+    SetBrowseResultFontSize()
 
     hooksecurefunc("AuctionFrameBrowse_Update", UpdateRowButtons)
     eventFrame:RegisterEvent("PLAYER_MONEY")

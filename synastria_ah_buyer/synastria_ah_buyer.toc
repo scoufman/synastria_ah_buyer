@@ -1,6 +1,6 @@
 ## Interface: 30300
 ## Title: Synastria AH Buyer
-## Version: 1.3
+## Version: 1.4
 ## Notes: Adds instant buyout and bid buttons to every Auction House browse row.
 ## OptionalDeps: Blizzard_AuctionUI
 
