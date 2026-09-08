@@ -10,7 +10,7 @@ A small World of Warcraft: Wrath of the Lich King 3.3.5a addon that adds instant
 
 - Compact **BUY** and **BID** buttons on every visible auction row
 - Consistent font sizing for item details and prices in Auction House browse results
-- Narrower level column gives auction item names more room
+- Narrower level column gives auction item names more room (might use the extra space in the future differently)
 - **BUY** purchases the auction without the normal confirmation popup
 - **BID** places the minimum bid currently accepted by the auction
 - Rechecks the auction and price when either button is clicked
