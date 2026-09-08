@@ -21,13 +21,34 @@ local BROWSE_RESULT_FONT_FIELDS = {
     "ClosingTimeText",
     "HighBidder",
 }
+local ROW_ACTIONS = {
+    buyout = {
+        title = "Instant Buyout",
+        enabled = "Click to buy this auction immediately.",
+        disabled = "This auction cannot currently be bought.",
+    },
+    bid = {
+        title = "Minimum Bid",
+        enabled = "Click to place the minimum allowed bid.",
+        disabled = "You cannot currently bid on this auction.",
+    },
+}
 
 local eventFrame = CreateFrame("Frame")
 local rowBuyoutButtons = {}
 local rowBidButtons = {}
+local rowWidgets = {}
 
 local function ShowError(message)
     UIErrorsFrame:AddMessage(message, 1, 0.1, 0.1)
+end
+
+local function SetEnabled(button, enabled)
+    if enabled then
+        button:Enable()
+    else
+        button:Disable()
+    end
 end
 
 local function SetFontSize(fontString, fontSize)
@@ -41,65 +62,54 @@ local function SetFontSize(fontString, fontSize)
     end
 end
 
-local function ConfigureMoneyFrame(frameName)
+local function PrepareMoneyFrame(frameName)
+    local frame = _G[frameName]
+    if not frame then
+        return nil
+    end
+
+    local denominations = {}
     for _, denomination in ipairs(MONEY_DENOMINATIONS) do
         local buttonName = frameName .. denomination.name .. "Button"
         local button = _G[buttonName]
         if button then
             local fontString = button:GetFontString() or _G[buttonName .. "Text"]
-            SetFontSize(fontString, PRICE_FONT_SIZE)
-
             if fontString then
+                SetFontSize(fontString, PRICE_FONT_SIZE)
+
                 if fontString.SetJustifyH then
                     fontString:SetJustifyH("RIGHT")
                 end
 
+                local minimumWidth = 0
                 if denomination.minimumText then
                     local text = fontString:GetText()
                     fontString:SetText(denomination.minimumText)
-                    button.synastriaMinimumTextWidth = fontString:GetStringWidth()
+                    minimumWidth = fontString:GetStringWidth()
                     fontString:SetText(text or "")
                 end
+
+                denominations[#denominations + 1] = {
+                    button = button,
+                    fontString = fontString,
+                    minimumWidth = minimumWidth,
+                }
             end
         end
     end
+
+    return { frame = frame, denominations = denominations }
 end
 
-local function UpdateMoneyFrameWidths(frameName)
-    for _, denomination in ipairs(MONEY_DENOMINATIONS) do
-        local buttonName = frameName .. denomination.name .. "Button"
-        local button = _G[buttonName]
-        if button then
-            local fontString = button:GetFontString() or _G[buttonName .. "Text"]
-            if fontString then
-                local textWidth = math.max(
-                    fontString:GetStringWidth(),
-                    button.synastriaMinimumTextWidth or 0
-                )
-                button:SetWidth(textWidth + MONEY_ICON_WIDTH)
-            end
-        end
+local function UpdateMoneyFrameWidths(moneyFrame)
+    for _, denomination in ipairs(moneyFrame.denominations) do
+        local textWidth = math.max(denomination.fontString:GetStringWidth(), denomination.minimumWidth)
+        denomination.button:SetWidth(textWidth + MONEY_ICON_WIDTH)
     end
 end
 
 local function HideFrameText(frame)
-    if not frame then
-        return
-    end
-
-    if frame.GetFont then
-        frame:Hide()
-        return
-    end
-
-    if frame.GetFontString then
-        local fontString = frame:GetFontString()
-        if fontString then
-            fontString:Hide()
-        end
-    end
-
-    if not frame.GetRegions then
+    if not frame or not frame.GetRegions then
         return
     end
 
@@ -131,7 +141,7 @@ local function ResizeLevelColumn()
     end
 end
 
-local function SetBrowseResultFontSize()
+local function PrepareRowWidgets()
     for i = 1, NUM_BROWSE_TO_DISPLAY do
         local rowName = "BrowseButton" .. i
 
@@ -139,18 +149,25 @@ local function SetBrowseResultFontSize()
             SetFontSize(_G[rowName .. fieldName], BROWSE_RESULT_FONT_SIZE)
         end
 
-        ConfigureMoneyFrame(rowName .. "MoneyFrame")
-        ConfigureMoneyFrame(rowName .. "BuyoutMoneyFrame")
-        ConfigureMoneyFrame(rowName .. "BuyoutFrameMoney")
+        rowWidgets[i] = {
+            row = _G[rowName],
+            moneyFrame = PrepareMoneyFrame(rowName .. "MoneyFrame"),
+            buyoutMoneyFrame = PrepareMoneyFrame(rowName .. "BuyoutFrameMoney"),
+            buyoutFrame = _G[rowName .. "BuyoutFrame"],
+            buyoutFrameText = _G[rowName .. "BuyoutFrameText"],
+        }
     end
 end
 
 local function UpdateBrowseMoneyFrameWidths()
     for i = 1, NUM_BROWSE_TO_DISPLAY do
-        local rowName = "BrowseButton" .. i
-        UpdateMoneyFrameWidths(rowName .. "MoneyFrame")
-        UpdateMoneyFrameWidths(rowName .. "BuyoutMoneyFrame")
-        UpdateMoneyFrameWidths(rowName .. "BuyoutFrameMoney")
+        local widgets = rowWidgets[i]
+        if widgets.moneyFrame then
+            UpdateMoneyFrameWidths(widgets.moneyFrame)
+        end
+        if widgets.buyoutMoneyFrame then
+            UpdateMoneyFrameWidths(widgets.buyoutMoneyFrame)
+        end
     end
 end
 
@@ -209,60 +226,47 @@ local function GetRowAuctionIndex(row)
     return row:GetID() + FauxScrollFrame_GetOffset(BrowseScrollFrame)
 end
 
-local function BuyoutRowAuction(self)
+local function HandleRowAction(self)
     local index = GetRowAuctionIndex(self:GetParent())
-    local buyoutPrice, _, _, errorMessage = GetAuctionActions(index)
-    if not buyoutPrice then
+    local buyoutPrice, bidPrice, _, buyoutError, bidError = GetAuctionActions(index)
+
+    local price, errorMessage
+    if self.synastriaAction == "buyout" then
+        price, errorMessage = buyoutPrice, buyoutError
+    else
+        price, errorMessage = bidPrice, bidError
+    end
+
+    if not price then
         ShowError(errorMessage)
         return
     end
 
     CloseAuctionStaticPopups()
     self:Disable()
-    PlaceAuctionBid(AUCTION_LIST, index, buyoutPrice)
+    PlaceAuctionBid(AUCTION_LIST, index, price)
 end
 
-local function BidOnRowAuction(self)
-    local index = GetRowAuctionIndex(self:GetParent())
-    local _, bidPrice, _, _, errorMessage = GetAuctionActions(index)
-    if not bidPrice then
-        ShowError(errorMessage)
-        return
+local function ShowRowTooltip(self)
+    local action = ROW_ACTIONS[self.synastriaAction]
+    local buyoutPrice, bidPrice, name = GetAuctionActions(GetRowAuctionIndex(self:GetParent()))
+
+    local price
+    if self.synastriaAction == "buyout" then
+        price = buyoutPrice
+    else
+        price = bidPrice
     end
 
-    CloseAuctionStaticPopups()
-    self:Disable()
-    PlaceAuctionBid(AUCTION_LIST, index, bidPrice)
-end
-
-local function ShowBuyoutTooltip(self)
-    local buyoutPrice, _, name = GetAuctionActions(GetRowAuctionIndex(self:GetParent()))
-
     GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText("Instant Buyout", 1, 1, 1)
+    GameTooltip:SetText(action.title, 1, 1, 1)
     if name then
         GameTooltip:AddLine(name, 1, 0.82, 0)
     end
-    if buyoutPrice then
-        GameTooltip:AddLine("Click to buy this auction immediately.", nil, nil, nil, true)
+    if price then
+        GameTooltip:AddLine(action.enabled, nil, nil, nil, true)
     else
-        GameTooltip:AddLine("This auction cannot currently be bought.", 1, 0.1, 0.1, true)
-    end
-    GameTooltip:Show()
-end
-
-local function ShowBidTooltip(self)
-    local _, bidPrice, name = GetAuctionActions(GetRowAuctionIndex(self:GetParent()))
-
-    GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-    GameTooltip:SetText("Minimum Bid", 1, 1, 1)
-    if name then
-        GameTooltip:AddLine(name, 1, 0.82, 0)
-    end
-    if bidPrice then
-        GameTooltip:AddLine("Click to place the minimum allowed bid.", nil, nil, nil, true)
-    else
-        GameTooltip:AddLine("You cannot currently bid on this auction.", 1, 0.1, 0.1, true)
+        GameTooltip:AddLine(action.disabled, 1, 0.1, 0.1, true)
     end
     GameTooltip:Show()
 end
@@ -273,41 +277,42 @@ end
 
 local function UpdateRowButtons()
     for i = 1, NUM_BROWSE_TO_DISPLAY do
-        local row = _G["BrowseButton" .. i]
+        local widgets = rowWidgets[i]
         local buyoutButton = rowBuyoutButtons[i]
         local bidButton = rowBidButtons[i]
 
-        if row:IsShown() then
-            local buyoutPrice, bidPrice = GetAuctionActions(GetRowAuctionIndex(row))
-            if buyoutPrice then
-                buyoutButton:Enable()
-            else
-                buyoutButton:Disable()
-            end
-            if bidPrice then
-                bidButton:Enable()
-            else
-                bidButton:Disable()
-            end
+        if widgets.row:IsShown() then
+            local buyoutPrice, bidPrice = GetAuctionActions(GetRowAuctionIndex(widgets.row))
+            SetEnabled(buyoutButton, buyoutPrice ~= nil)
+            SetEnabled(bidButton, bidPrice ~= nil)
 
-            local buyoutFrame = _G["BrowseButton" .. i .. "BuyoutFrame"]
-            local buyoutText = _G["BrowseButton" .. i .. "BuyoutText"]
-            local buyoutFrameText = _G["BrowseButton" .. i .. "BuyoutFrameText"]
-            local moneyFrame = _G["BrowseButton" .. i .. "MoneyFrame"]
-            local verticalOffset = buyoutFrame:IsShown() and 10 or 3
+            local moneyFrame = widgets.moneyFrame.frame
+            local verticalOffset = widgets.buyoutFrame:IsShown() and 10 or 3
             moneyFrame:ClearAllPoints()
             moneyFrame:SetPoint("RIGHT", buyoutButton, "LEFT", PRICE_FRAME_OFFSET, verticalOffset)
 
-            HideFrameText(buyoutFrame)
-            HideFrameText(buyoutText)
-            HideFrameText(buyoutFrameText)
+            HideFrameText(widgets.buyoutFrameText)
         else
-            buyoutButton:Disable()
-            bidButton:Disable()
+            SetEnabled(buyoutButton, false)
+            SetEnabled(bidButton, false)
         end
     end
 
     UpdateBrowseMoneyFrameWidths()
+end
+
+local function CreateRowButton(row, label, action)
+    local button = CreateFrame("Button", nil, row, "UIPanelButtonTemplate")
+    button:SetWidth(ROW_BUTTON_WIDTH)
+    button:SetHeight(ROW_BUTTON_HEIGHT)
+    button:SetFrameLevel(row:GetFrameLevel() + 2)
+    button:SetText(label)
+    button.synastriaAction = action
+    SetFontSize(button:GetFontString(), ROW_BUTTON_FONT_SIZE)
+    button:SetScript("OnClick", HandleRowAction)
+    button:SetScript("OnEnter", ShowRowTooltip)
+    button:SetScript("OnLeave", HideRowButtonTooltip)
+    return button
 end
 
 local function CreateRowButtons()
@@ -319,42 +324,17 @@ local function CreateRowButtons()
 
     for i = 1, NUM_BROWSE_TO_DISPLAY do
         local row = _G["BrowseButton" .. i]
-        local bidButton = CreateFrame(
-            "Button",
-            "SynastriaAHBuyerRowBidButton" .. i,
-            row,
-            "UIPanelButtonTemplate"
-        )
-        bidButton:SetWidth(ROW_BUTTON_WIDTH)
-        bidButton:SetHeight(ROW_BUTTON_HEIGHT)
+
+        local bidButton = CreateRowButton(row, "BID", "bid")
         bidButton:SetPoint("RIGHT", row, "RIGHT", -2, 1)
-        bidButton:SetFrameLevel(row:GetFrameLevel() + 2)
-        bidButton:SetText("BID")
-        SetFontSize(bidButton:GetFontString(), ROW_BUTTON_FONT_SIZE)
-        bidButton:SetScript("OnClick", BidOnRowAuction)
-        bidButton:SetScript("OnEnter", ShowBidTooltip)
-        bidButton:SetScript("OnLeave", HideRowButtonTooltip)
         rowBidButtons[i] = bidButton
 
-        local buyoutButton = CreateFrame(
-            "Button",
-            "SynastriaAHBuyerRowBuyoutButton" .. i,
-            row,
-            "UIPanelButtonTemplate"
-        )
-        buyoutButton:SetWidth(ROW_BUTTON_WIDTH)
-        buyoutButton:SetHeight(ROW_BUTTON_HEIGHT)
+        local buyoutButton = CreateRowButton(row, "BUY", "buyout")
         buyoutButton:SetPoint("RIGHT", bidButton, "LEFT", -ROW_BUTTON_GAP, 0)
-        buyoutButton:SetFrameLevel(row:GetFrameLevel() + 2)
-        buyoutButton:SetText("BUY")
-        SetFontSize(buyoutButton:GetFontString(), ROW_BUTTON_FONT_SIZE)
-        buyoutButton:SetScript("OnClick", BuyoutRowAuction)
-        buyoutButton:SetScript("OnEnter", ShowBuyoutTooltip)
-        buyoutButton:SetScript("OnLeave", HideRowButtonTooltip)
         rowBuyoutButtons[i] = buyoutButton
     end
 
-    SetBrowseResultFontSize()
+    PrepareRowWidgets()
 
     hooksecurefunc("AuctionFrameBrowse_Update", UpdateRowButtons)
     eventFrame:RegisterEvent("PLAYER_MONEY")
