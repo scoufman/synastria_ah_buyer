@@ -1,7 +1,26 @@
 local AUCTION_LIST = "list"
-local ROW_BUTTON_WIDTH = 40
+local ROW_BUTTON_WIDTH = 30
+local ROW_BUTTON_HEIGHT = 16
 local ROW_BUTTON_GAP = 2
-local PRICE_OFFSET = -(ROW_BUTTON_WIDTH * 2 + ROW_BUTTON_GAP + 6)
+local ROW_BUTTON_FONT_SIZE = 9
+local PRICE_FRAME_OFFSET = 9
+local BROWSE_RESULT_FONT_SIZE = 10
+local PRICE_FONT_SIZE = 13
+local MONEY_ICON_WIDTH = 13
+local MONEY_DENOMINATIONS = {
+    "Gold",
+    "Silver",
+    "Copper",
+}
+
+local LEVEL_COLUMN_REDUCTION = 22
+local LEVEL_COLUMN_OVERLAP = 5
+local BROWSE_RESULT_FONT_FIELDS = {
+    "Name",
+    "Level",
+    "ClosingTimeText",
+    "HighBidder",
+}
 
 local eventFrame = CreateFrame("Frame")
 local rowBuyoutButtons = {}
@@ -9,6 +28,95 @@ local rowBidButtons = {}
 
 local function ShowError(message)
     UIErrorsFrame:AddMessage(message, 1, 0.1, 0.1)
+end
+
+local function SetFontSize(fontString, fontSize)
+    if not fontString then
+        return
+    end
+
+    local fontFile, _, fontFlags = fontString:GetFont()
+    if fontFile then
+        fontString:SetFont(fontFile, fontSize, fontFlags)
+    end
+end
+
+local function SetMoneyFrameFontSize(frameName)
+    for _, denomination in ipairs(MONEY_DENOMINATIONS) do
+        local buttonName = frameName .. denomination .. "Button"
+        local button = _G[buttonName]
+        if button then
+            local fontString = button:GetFontString() or _G[buttonName .. "Text"]
+            SetFontSize(fontString, PRICE_FONT_SIZE)
+
+            if fontString then
+                button:SetWidth(fontString:GetStringWidth() + MONEY_ICON_WIDTH)
+            end
+        end
+    end
+end
+
+local function HideFrameText(frame)
+    if not frame then
+        return
+    end
+
+    if frame.GetFont then
+        frame:Hide()
+        return
+    end
+
+    if frame.GetFontString then
+        local fontString = frame:GetFontString()
+        if fontString then
+            fontString:Hide()
+        end
+    end
+
+    if not frame.GetRegions then
+        return
+    end
+
+    local regions = { frame:GetRegions() }
+    for _, region in ipairs(regions) do
+        if region.GetFont and region.Hide then
+            region:Hide()
+        end
+    end
+end
+
+local function ResizeLevelColumn()
+    if BrowseQualitySort and BrowseLevelSort then
+        BrowseQualitySort:SetWidth(BrowseQualitySort:GetWidth() + LEVEL_COLUMN_REDUCTION)
+        BrowseLevelSort:SetWidth(math.max(1, BrowseLevelSort:GetWidth() - LEVEL_COLUMN_REDUCTION))
+    end
+
+    for i = 1, NUM_BROWSE_TO_DISPLAY do
+        local rowName = "BrowseButton" .. i
+        local itemName = _G[rowName .. "Name"]
+        local level = _G[rowName .. "Level"]
+
+        if itemName and level then
+            itemName:SetWidth(itemName:GetWidth() + LEVEL_COLUMN_REDUCTION)
+            level:SetWidth(math.max(1, level:GetWidth() - LEVEL_COLUMN_REDUCTION))
+            level:ClearAllPoints()
+            level:SetPoint("TOPLEFT", itemName, "TOPRIGHT", -LEVEL_COLUMN_OVERLAP, 0)
+        end
+    end
+end
+
+local function SetBrowseResultFontSize()
+    for i = 1, NUM_BROWSE_TO_DISPLAY do
+        local rowName = "BrowseButton" .. i
+
+        for _, fieldName in ipairs(BROWSE_RESULT_FONT_FIELDS) do
+            SetFontSize(_G[rowName .. fieldName], BROWSE_RESULT_FONT_SIZE)
+        end
+
+        SetMoneyFrameFontSize(rowName .. "MoneyFrame")
+        SetMoneyFrameFontSize(rowName .. "BuyoutMoneyFrame")
+        SetMoneyFrameFontSize(rowName .. "BuyoutFrameMoney")
+    end
 end
 
 local function GetAuctionActions(index)
@@ -148,21 +256,31 @@ local function UpdateRowButtons()
             end
 
             local buyoutFrame = _G["BrowseButton" .. i .. "BuyoutFrame"]
+            local buyoutText = _G["BrowseButton" .. i .. "BuyoutText"]
+            local buyoutFrameText = _G["BrowseButton" .. i .. "BuyoutFrameText"]
             local moneyFrame = _G["BrowseButton" .. i .. "MoneyFrame"]
             local verticalOffset = buyoutFrame:IsShown() and 10 or 3
             moneyFrame:ClearAllPoints()
-            moneyFrame:SetPoint("RIGHT", row, "RIGHT", PRICE_OFFSET, verticalOffset)
+            moneyFrame:SetPoint("RIGHT", buyoutButton, "LEFT", PRICE_FRAME_OFFSET, verticalOffset)
+
+            HideFrameText(buyoutFrame)
+            HideFrameText(buyoutText)
+            HideFrameText(buyoutFrameText)
         else
             buyoutButton:Disable()
             bidButton:Disable()
         end
     end
+
+    SetBrowseResultFontSize()
 end
 
 local function CreateRowButtons()
     if rowBuyoutButtons[1] or not AuctionFrameBrowse or not BrowseButton1 then
         return
     end
+
+    ResizeLevelColumn()
 
     for i = 1, NUM_BROWSE_TO_DISPLAY do
         local row = _G["BrowseButton" .. i]
@@ -173,10 +291,11 @@ local function CreateRowButtons()
             "UIPanelButtonTemplate"
         )
         bidButton:SetWidth(ROW_BUTTON_WIDTH)
-        bidButton:SetHeight(20)
+        bidButton:SetHeight(ROW_BUTTON_HEIGHT)
         bidButton:SetPoint("RIGHT", row, "RIGHT", -2, 1)
         bidButton:SetFrameLevel(row:GetFrameLevel() + 2)
         bidButton:SetText("BID")
+        SetFontSize(bidButton:GetFontString(), ROW_BUTTON_FONT_SIZE)
         bidButton:SetScript("OnClick", BidOnRowAuction)
         bidButton:SetScript("OnEnter", ShowBidTooltip)
         bidButton:SetScript("OnLeave", HideRowButtonTooltip)
@@ -189,10 +308,11 @@ local function CreateRowButtons()
             "UIPanelButtonTemplate"
         )
         buyoutButton:SetWidth(ROW_BUTTON_WIDTH)
-        buyoutButton:SetHeight(20)
+        buyoutButton:SetHeight(ROW_BUTTON_HEIGHT)
         buyoutButton:SetPoint("RIGHT", bidButton, "LEFT", -ROW_BUTTON_GAP, 0)
         buyoutButton:SetFrameLevel(row:GetFrameLevel() + 2)
         buyoutButton:SetText("BUY")
+        SetFontSize(buyoutButton:GetFontString(), ROW_BUTTON_FONT_SIZE)
         buyoutButton:SetScript("OnClick", BuyoutRowAuction)
         buyoutButton:SetScript("OnEnter", ShowBuyoutTooltip)
         buyoutButton:SetScript("OnLeave", HideRowButtonTooltip)
